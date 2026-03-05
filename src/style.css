@@ -73,6 +73,31 @@ body {
   color: rgba(255, 255, 255, 0.78);
 }
 
+.hero-links {
+  margin-top: 12px;
+  display: flex;
+  gap: 10px;
+  flex-wrap: wrap;
+}
+
+.hero-links a {
+  color: #fff3d7;
+  text-decoration: none;
+  font-size: 0.9rem;
+  letter-spacing: 0.04em;
+  padding: 6px 12px;
+  border-radius: 999px;
+  border: 1px solid rgba(255, 255, 255, 0.35);
+  background: rgba(16, 45, 47, 0.35);
+  transition: transform 180ms ease, background 180ms ease, color 180ms ease;
+}
+
+.hero-links a:hover {
+  transform: translateY(-1px);
+  background: rgba(255, 255, 255, 0.12);
+  color: #ffffff;
+}
+
 .status-card {
   min-width: 220px;
   padding: 16px 18px;
