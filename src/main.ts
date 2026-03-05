@@ -61,9 +61,11 @@ const turnLabel = document.getElementById("turnLabel") as HTMLDivElement;
 const viewLeftBtn = document.getElementById("viewLeftBtn") as HTMLButtonElement;
 const viewRightBtn = document.getElementById("viewRightBtn") as HTMLButtonElement;
 const viewCenterBtn = document.getElementById("viewCenterBtn") as HTMLButtonElement;
+const flipBoardBtn = document.getElementById("flipBoardBtn") as HTMLButtonElement;
 const startBtn = document.getElementById("startBtn") as HTMLButtonElement;
 const pauseBtn = document.getElementById("pauseBtn") as HTMLButtonElement;
 const stepBtn = document.getElementById("stepBtn") as HTMLButtonElement;
+const undoBtn = document.getElementById("undoBtn") as HTMLButtonElement;
 const resetBtn = document.getElementById("resetBtn") as HTMLButtonElement;
 const saveFenBtn = document.getElementById("saveFenBtn") as HTMLButtonElement;
 const exportFenBtn = document.getElementById("exportFenBtn") as HTMLButtonElement;
@@ -151,6 +153,7 @@ function createZobrist() {
 const zobrist = createZobrist();
 const repetitionHistory: string[] = [];
 const repetitionCounts = new Map<string, number>();
+const boardHistory: Board[] = [];
 
 const state = {
   board: initialBoard(),
@@ -171,6 +174,7 @@ const state = {
   paused: false,
   aiThinking: false,
   pendingPromotion: null as Move | null,
+  flipBoard: false,
   boardSize: 480,
   squareSize: 60,
 };
@@ -235,6 +239,46 @@ function resetRepetition(board: Board): void {
 
 function getRepetitionCount(board: Board): number {
   return repetitionCounts.get(hashBoard(board)) ?? 0;
+}
+
+function pushHistory(board: Board): void {
+  boardHistory.push(cloneBoard(board));
+}
+
+function resetHistory(board: Board): void {
+  boardHistory.length = 0;
+  pushHistory(board);
+}
+
+function popRepetition(): void {
+  if (repetitionHistory.length <= 1) return;
+  const last = repetitionHistory.pop();
+  if (!last) return;
+  const count = repetitionCounts.get(last);
+  if (!count) return;
+  if (count <= 1) {
+    repetitionCounts.delete(last);
+  } else {
+    repetitionCounts.set(last, count - 1);
+  }
+}
+
+function undoOnePly(): boolean {
+  if (boardHistory.length <= 1) return false;
+  boardHistory.pop();
+  popRepetition();
+  const previous = boardHistory[boardHistory.length - 1];
+  state.board = cloneBoard(previous);
+  return true;
+}
+
+function undoPlies(count: number): number {
+  let undone = 0;
+  for (let i = 0; i < count; i += 1) {
+    if (!undoOnePly()) break;
+    undone += 1;
+  }
+  return undone;
 }
 
 function colToFile(col: number): string {
@@ -881,7 +925,7 @@ function getViewState(): { startCol: number; frac: number } {
 }
 
 function rowToY(row: number): number {
-  return (7 - row) * state.squareSize;
+  return (state.flipBoard ? row : 7 - row) * state.squareSize;
 }
 
 function colToX(col: number): number {
@@ -931,12 +975,29 @@ function drawPieces(): void {
       const cy = y + state.squareSize / 2;
       const radius = state.squareSize * 0.38;
 
+      const palette =
+        piece.color === "w"
+          ? {
+              base: "#fdf1d2",
+              stroke: "rgba(120, 86, 60, 0.45)",
+              icon: "#d9c2a5",
+              iconStroke: "rgba(80, 60, 45, 0.55)",
+              shadow: "rgba(0, 0, 0, 0.16)",
+            }
+          : {
+              base: "#5b463b",
+              stroke: "rgba(255, 255, 255, 0.18)",
+              icon: "#1c1411",
+              iconStroke: "rgba(255, 255, 255, 0.18)",
+              shadow: "rgba(0, 0, 0, 0.32)",
+            };
+
       ctx.save();
-      ctx.shadowColor = piece.color === "w" ? "rgba(0, 0, 0, 0.18)" : "rgba(0, 0, 0, 0.28)";
+      ctx.shadowColor = palette.shadow;
       ctx.shadowBlur = state.squareSize * 0.12;
       ctx.shadowOffsetY = state.squareSize * 0.05;
-      ctx.fillStyle = piece.color === "w" ? "#fdf1d2" : "#2f241f";
-      ctx.strokeStyle = piece.color === "w" ? "rgba(136, 99, 70, 0.5)" : "rgba(255, 255, 255, 0.2)";
+      ctx.fillStyle = palette.base;
+      ctx.strokeStyle = palette.stroke;
       ctx.lineWidth = state.squareSize * 0.05;
       ctx.beginPath();
       ctx.arc(cx, cy, radius, 0, Math.PI * 2);
@@ -951,8 +1012,11 @@ function drawPieces(): void {
       ctx.translate(cx, cy + state.squareSize * 0.02);
       ctx.scale(scale, scale);
       ctx.translate(-icon.width / 2, -icon.height / 2);
-      ctx.fillStyle = piece.color === "w" ? "#3a2c28" : "#fdf1d2";
+      ctx.fillStyle = palette.icon;
+      ctx.strokeStyle = palette.iconStroke;
+      ctx.lineWidth = 8;
       ctx.fill(icon.path);
+      ctx.stroke(icon.path);
       ctx.restore();
     }
   }
@@ -1057,6 +1121,7 @@ aiWorker.addEventListener("message", (event: MessageEvent<WorkerSearchResult>) =
   applyMove(state.board, matchedMove);
   recordRepetition(state.board);
   updateGameState(state.board);
+  pushHistory(state.board);
   resetSelection();
   scheduleNextTurn();
 });
@@ -1115,6 +1180,7 @@ function updateButtons(): void {
   pauseBtn.disabled = !aiVsAi || !state.aiAuto || state.board.gameOver;
   pauseBtn.textContent = state.paused ? "继续" : "暂停";
   stepBtn.disabled = !aiVsAi || !state.aiAuto || !state.paused || state.board.gameOver;
+  undoBtn.disabled = boardHistory.length <= 1;
 }
 
 function updateDepthLabels(): void {
@@ -1143,6 +1209,7 @@ function resetGame(): void {
   state.paused = false;
   state.pendingPromotion = null;
   resetRepetition(state.board);
+  resetHistory(state.board);
   resetSelection();
   updateGameState(state.board);
   updateStatus();
@@ -1169,6 +1236,7 @@ function setMode(mode: string): void {
       state.players = ["human", "human"];
       break;
   }
+  state.flipBoard = mode === "aivh";
   resetGame();
 }
 
@@ -1243,6 +1311,7 @@ function handlePromotionChoice(type: PieceType): void {
   applyMove(state.board, move);
   recordRepetition(state.board);
   updateGameState(state.board);
+  pushHistory(state.board);
   resetSelection();
   scheduleNextTurn();
 }
@@ -1263,6 +1332,7 @@ function attemptMove(move: Move): void {
   applyMove(state.board, move);
   recordRepetition(state.board);
   updateGameState(state.board);
+  pushHistory(state.board);
   resetSelection();
   scheduleNextTurn();
 }
@@ -1273,7 +1343,7 @@ function getBoardCoords(event: PointerEvent): { row: number; col: number } | nul
   const y = event.clientY - rect.top;
   if (x < 0 || y < 0 || x > rect.width || y > rect.height) return null;
   const colIndex = Math.floor(x / state.squareSize);
-  const rowIndex = 7 - Math.floor(y / state.squareSize);
+  const rowIndex = state.flipBoard ? Math.floor(y / state.squareSize) : 7 - Math.floor(y / state.squareSize);
   const col = mod(state.snapBaseCol + colIndex, 8);
   return { row: rowIndex, col };
 }
@@ -1357,6 +1427,11 @@ viewCenterBtn.addEventListener("click", () => {
   draw();
 });
 
+flipBoardBtn.addEventListener("click", () => {
+  state.flipBoard = !state.flipBoard;
+  draw();
+});
+
 startBtn.addEventListener("click", () => {
   if (state.mode !== "aivai" || state.aiAuto || state.board.gameOver) return;
   state.aiAuto = true;
@@ -1376,6 +1451,42 @@ pauseBtn.addEventListener("click", () => {
 stepBtn.addEventListener("click", () => {
   if (state.mode !== "aivai" || !state.aiAuto || !state.paused) return;
   triggerAiMove(true);
+});
+
+undoBtn.addEventListener("click", () => {
+  let changed = false;
+  if (state.aiThinking) {
+    cancelAiSearch();
+    changed = true;
+  }
+  if (state.pendingPromotion) {
+    state.pendingPromotion = null;
+    promotionOverlay.classList.remove("show");
+    promotionOverlay.setAttribute("aria-hidden", "true");
+    changed = true;
+  }
+
+  const whiteHuman = state.players[0] === "human";
+  const blackHuman = state.players[1] === "human";
+  let plies = 1;
+  if (whiteHuman && blackHuman) {
+    plies = 1;
+  } else if (!whiteHuman && !blackHuman) {
+    plies = 2;
+  } else {
+    const humanColor: Color = whiteHuman ? "w" : "b";
+    plies = state.board.turn === humanColor ? 2 : 1;
+  }
+
+  const undone = undoPlies(plies);
+  if (undone > 0) {
+    updateGameState(state.board);
+    changed = true;
+  }
+
+  if (!changed) return;
+  resetSelection();
+  scheduleNextTurn();
 });
 
 resetBtn.addEventListener("click", () => {
@@ -1412,6 +1523,7 @@ loadFenBtn.addEventListener("click", () => {
   state.snapBaseCol = 0;
   state.pendingPromotion = null;
   resetRepetition(state.board);
+  resetHistory(state.board);
   resetSelection();
   updateGameState(state.board);
   scheduleNextTurn();
@@ -1453,5 +1565,6 @@ aiDelayValue.textContent = `${state.aiDelay} ms`;
 updateDepthLabels();
 updateDepthControls();
 resetRepetition(state.board);
+resetHistory(state.board);
 resizeCanvas();
 scheduleNextTurn();
