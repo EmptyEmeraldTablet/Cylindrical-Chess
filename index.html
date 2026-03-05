@@ -1,0 +1,133 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>圆柱面国际象棋</title>
+    <link rel="icon" href="data:," />
+  </head>
+  <body>
+    <div class="app">
+      <header class="hero">
+        <div class="hero-top">
+          <div class="title-block">
+            <p class="eyebrow">Cylindrical Chess</p>
+            <h1>圆柱面国际象棋</h1>
+            <p class="subtitle">横向循环棋盘 · Canvas 实时渲染 · AI 对弈与视角滚动</p>
+          </div>
+          <div class="status-card">
+            <p class="status-label">对局状态</p>
+            <p class="status-text" id="statusText">载入中...</p>
+          </div>
+        </div>
+      </header>
+
+      <main class="main">
+        <section class="board-panel">
+          <div class="board-header">
+            <div class="turn-indicator" id="turnLabel">白方回合</div>
+            <div class="view-controls">
+              <button class="ghost" id="viewLeftBtn">视角左移</button>
+              <button class="ghost" id="viewCenterBtn">回正</button>
+              <button class="ghost" id="viewRightBtn">视角右移</button>
+            </div>
+          </div>
+          <div class="canvas-wrap">
+            <canvas id="boardCanvas" aria-label="棋盘"></canvas>
+          </div>
+          <div class="board-footer">
+            <p>提示：拖动棋盘可平滑滚动列视角，点击棋子显示落子范围。</p>
+          </div>
+        </section>
+
+        <section class="control-panel">
+          <div class="panel-section">
+            <h2>对弈模式</h2>
+            <div class="option-list" role="radiogroup" aria-label="对弈模式">
+              <label class="option">
+                <input type="radio" name="mode" value="hvh" checked />
+                <span>人人对弈</span>
+              </label>
+              <label class="option">
+                <input type="radio" name="mode" value="hvai" />
+                <span>人机对弈（白方人类）</span>
+              </label>
+              <label class="option">
+                <input type="radio" name="mode" value="aivh" />
+                <span>人机对弈（黑方人类）</span>
+              </label>
+              <label class="option">
+                <input type="radio" name="mode" value="aivai" />
+                <span>机器对弈</span>
+              </label>
+            </div>
+          </div>
+
+          <div class="panel-section">
+            <h2>AI 控制</h2>
+            <div class="slider-row">
+              <label for="aiDelay">AI 延时</label>
+              <input id="aiDelay" type="range" min="0" max="2000" step="100" value="500" />
+              <span class="slider-value" id="aiDelayValue">500 ms</span>
+            </div>
+            <div class="button-row">
+              <button id="startBtn">开始</button>
+              <button id="pauseBtn" class="ghost">暂停</button>
+              <button id="stepBtn" class="ghost">单步执行</button>
+              <button id="resetBtn" class="ghost">重置棋局</button>
+            </div>
+          </div>
+
+          <div class="panel-section">
+            <h2>AI 深度</h2>
+            <div class="slider-row">
+              <label for="aiDepthWhite">白方深度</label>
+              <input id="aiDepthWhite" type="range" min="1" max="5" step="1" value="3" />
+              <span class="slider-value" id="aiDepthWhiteValue">3 层</span>
+            </div>
+            <div class="slider-row">
+              <label for="aiDepthBlack">黑方深度</label>
+              <input id="aiDepthBlack" type="range" min="1" max="5" step="1" value="3" />
+              <span class="slider-value" id="aiDepthBlackValue">3 层</span>
+            </div>
+            <p class="helper-text">人机模式仅启用 AI 方；机器对弈可分别设置双方深度。</p>
+          </div>
+
+          <div class="panel-section">
+            <h2>棋局保存与加载</h2>
+            <textarea id="fenInput" rows="4" spellcheck="false" placeholder="在此粘贴或生成 FEN"></textarea>
+            <div class="button-row">
+              <button id="saveFenBtn">生成 FEN</button>
+              <button id="exportFenBtn" class="ghost">导出文件</button>
+              <button id="loadFenBtn" class="ghost">加载 FEN</button>
+            </div>
+          </div>
+
+          <div class="panel-section">
+            <h2>提示</h2>
+            <ul class="tips">
+              <li>横向相邻列包含循环边界（a 与 h 相邻）。</li>
+              <li>AI 默认深度为 3，适合展示规则效果。</li>
+              <li>支持吃过路兵、易位、升变与将死判断。</li>
+              <li>三次重复或 50 步无兵移动/吃子自动和棋。</li>
+            </ul>
+          </div>
+        </section>
+      </main>
+    </div>
+
+    <div class="promotion-overlay" id="promotionOverlay" aria-hidden="true">
+      <div class="promotion-card">
+        <p class="promotion-title">兵升变</p>
+        <div class="promotion-options">
+          <button data-piece="q">后</button>
+          <button data-piece="r">车</button>
+          <button data-piece="b">象</button>
+          <button data-piece="n">马</button>
+        </div>
+      </div>
+    </div>
+
+    <script type="module" src="/src/main.ts"></script>
+  </body>
+</html>
