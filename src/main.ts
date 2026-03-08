@@ -78,6 +78,7 @@ const aiDepthWhiteValue = document.getElementById("aiDepthWhiteValue") as HTMLSp
 const aiDepthBlack = document.getElementById("aiDepthBlack") as HTMLInputElement;
 const aiDepthBlackValue = document.getElementById("aiDepthBlackValue") as HTMLSpanElement;
 const promotionOverlay = document.getElementById("promotionOverlay") as HTMLDivElement;
+const hoverPreviewToggle = document.getElementById("hoverPreviewToggle") as HTMLInputElement;
 
 const ctx = canvas.getContext("2d");
 if (!ctx) {
@@ -165,6 +166,10 @@ const state = {
   dragStartBaseCol: 0,
   selected: null as { row: number; col: number } | null,
   legalMoves: [] as Move[],
+  illegalMoves: [] as Move[],
+  hovered: null as { row: number; col: number } | null,
+  hoverMoves: [] as Move[],
+  hoverIllegalMoves: [] as Move[],
   mode: "hvh",
   players: ["human", "human"] as [PlayerType, PlayerType],
   aiDelay: 500,
@@ -175,8 +180,10 @@ const state = {
   aiThinking: false,
   pendingPromotion: null as Move | null,
   flipBoard: false,
+  hoverPreview: false,
   boardSize: 480,
   squareSize: 60,
+  pinnedPieces: new Set<string>(),
 };
 
 const aiWorker = new Worker(new URL("./aiWorker.ts", import.meta.url), { type: "module" });
@@ -729,6 +736,35 @@ function generateAllLegalMoves(board: Board, color: Color): Move[] {
   return moves;
 }
 
+function updatePinnedPieces(board: Board): void {
+  const pinned = new Set<string>();
+  if (board.gameOver) {
+    state.pinnedPieces = pinned;
+    return;
+  }
+
+  const color = board.turn;
+  for (let row = 0; row < 8; row += 1) {
+    for (let col = 0; col < 8; col += 1) {
+      const piece = board.squares[row][col];
+      if (!piece || piece.color !== color || piece.type === "k") continue;
+      const pseudoMoves = generatePseudoMovesForPiece(board, row, col, piece);
+      if (pseudoMoves.length === 0) continue;
+      let hasLegal = false;
+      for (const move of pseudoMoves) {
+        if (isMoveLegal(board, move, color)) {
+          hasLegal = true;
+          break;
+        }
+      }
+      if (!hasLegal) {
+        pinned.add(`${row}-${col}`);
+      }
+    }
+  }
+  state.pinnedPieces = pinned;
+}
+
 function applyMove(board: Board, move: Move): void {
   const [fromRow, fromCol] = move.from;
   const [toRow, toCol] = move.to;
@@ -811,11 +847,13 @@ function updateGameState(board: Board): void {
   if (getRepetitionCount(board) >= 3) {
     board.gameOver = true;
     board.winner = "draw";
+    updatePinnedPieces(board);
     return;
   }
   if (board.halfMove >= 100) {
     board.gameOver = true;
     board.winner = "draw";
+    updatePinnedPieces(board);
     return;
   }
   const legalMoves = generateAllLegalMoves(board, board.turn);
@@ -831,6 +869,7 @@ function updateGameState(board: Board): void {
     board.gameOver = false;
     board.winner = null;
   }
+  updatePinnedPieces(board);
 }
 
 function boardToFEN(board: Board): string {
@@ -1023,18 +1062,61 @@ function drawPieces(): void {
 }
 
 function drawHighlights(): void {
-  if (state.selected) {
-    const { row, col } = state.selected;
+  if (state.pinnedPieces.size > 0 && !state.board.gameOver) {
+    ctx.save();
+    ctx.strokeStyle = "rgba(165, 47, 47, 0.65)";
+    ctx.lineWidth = state.squareSize * 0.05;
+    ctx.setLineDash([state.squareSize * 0.18, state.squareSize * 0.12]);
+    for (const key of state.pinnedPieces) {
+      const [rowStr, colStr] = key.split("-");
+      const row = Number(rowStr);
+      const col = Number(colStr);
+      const x = colToX(col);
+      const y = rowToY(row);
+      if (x + state.squareSize <= 0 || x >= state.boardSize) continue;
+      ctx.strokeRect(x + 4, y + 4, state.squareSize - 8, state.squareSize - 8);
+    }
+    ctx.restore();
+  }
+
+  const active =
+    state.selected ??
+    (state.hoverPreview && state.hovered ? state.hovered : null);
+  const isHover = !state.selected && !!active;
+  const legalMoves = state.selected
+    ? state.legalMoves
+    : state.hoverPreview
+      ? state.hoverMoves
+      : [];
+  const illegalMoves = state.selected
+    ? state.illegalMoves
+    : state.hoverPreview
+      ? state.hoverIllegalMoves
+      : [];
+
+  if (active) {
+    const { row, col } = active;
     const x = colToX(col);
     const y = rowToY(row);
     if (x + state.squareSize > 0 && x < state.boardSize) {
-      ctx.strokeStyle = "rgba(44, 95, 108, 0.85)";
+      ctx.save();
+      ctx.strokeStyle = isHover ? "rgba(44, 95, 108, 0.55)" : "rgba(44, 95, 108, 0.85)";
       ctx.lineWidth = state.squareSize * 0.06;
+      if (isHover) {
+        ctx.setLineDash([state.squareSize * 0.16, state.squareSize * 0.12]);
+      } else if (state.legalMoves.length === 0 && state.illegalMoves.length > 0) {
+        ctx.strokeStyle = "rgba(165, 47, 47, 0.8)";
+        ctx.setLineDash([state.squareSize * 0.14, state.squareSize * 0.1]);
+      }
       ctx.strokeRect(x + 2, y + 2, state.squareSize - 4, state.squareSize - 4);
+      ctx.restore();
     }
   }
 
-  for (const move of state.legalMoves) {
+  const captureStroke = isHover ? "rgba(186, 54, 52, 0.55)" : "rgba(186, 54, 52, 0.85)";
+  const captureFill = isHover ? "rgba(186, 54, 52, 0.18)" : "rgba(186, 54, 52, 0.28)";
+  const quietFill = isHover ? "rgba(44, 95, 108, 0.25)" : "rgba(44, 95, 108, 0.4)";
+  for (const move of legalMoves) {
     const [row, col] = move.to;
     const x = colToX(col);
     const y = rowToY(row);
@@ -1044,17 +1126,40 @@ function drawHighlights(): void {
     const target = state.board.squares[row][col];
     const isCapture = !!target || move.isEnPassant;
     if (isCapture) {
-      ctx.strokeStyle = "rgba(208, 107, 46, 0.75)";
-      ctx.lineWidth = state.squareSize * 0.08;
+      ctx.fillStyle = captureFill;
       ctx.beginPath();
-      ctx.arc(cx, cy, state.squareSize * 0.38, 0, Math.PI * 2);
+      ctx.arc(cx, cy, state.squareSize * 0.24, 0, Math.PI * 2);
+      ctx.fill();
+      ctx.strokeStyle = captureStroke;
+      ctx.lineWidth = state.squareSize * 0.12;
+      ctx.beginPath();
+      ctx.arc(cx, cy, state.squareSize * 0.4, 0, Math.PI * 2);
       ctx.stroke();
     } else {
-      ctx.fillStyle = "rgba(44, 95, 108, 0.4)";
+      ctx.fillStyle = quietFill;
       ctx.beginPath();
       ctx.arc(cx, cy, state.squareSize * 0.14, 0, Math.PI * 2);
       ctx.fill();
     }
+  }
+
+  if (illegalMoves.length > 0) {
+    ctx.save();
+    ctx.strokeStyle = isHover ? "rgba(165, 47, 47, 0.45)" : "rgba(165, 47, 47, 0.7)";
+    ctx.lineWidth = state.squareSize * 0.06;
+    ctx.setLineDash([state.squareSize * 0.16, state.squareSize * 0.12]);
+    for (const move of illegalMoves) {
+      const [row, col] = move.to;
+      const x = colToX(col);
+      const y = rowToY(row);
+      if (x + state.squareSize <= 0 || x >= state.boardSize) continue;
+      const cx = x + state.squareSize / 2;
+      const cy = y + state.squareSize / 2;
+      ctx.beginPath();
+      ctx.arc(cx, cy, state.squareSize * 0.3, 0, Math.PI * 2);
+      ctx.stroke();
+    }
+    ctx.restore();
   }
 
   if (isInCheck(state.board, state.board.turn)) {
@@ -1087,6 +1192,10 @@ function movesMatch(left: Move, right: Move): boolean {
     left.to[1] === right.to[1] &&
     leftPromotion === rightPromotion
   );
+}
+
+function moveKey(move: Move): string {
+  return `${move.from[0]}-${move.from[1]}-${move.to[0]}-${move.to[1]}`;
 }
 
 function cancelAiSearch(): void {
@@ -1122,6 +1231,7 @@ aiWorker.addEventListener("message", (event: MessageEvent<WorkerSearchResult>) =
   recordRepetition(state.board);
   updateGameState(state.board);
   pushHistory(state.board);
+  clearHover();
   resetSelection();
   scheduleNextTurn();
 });
@@ -1134,12 +1244,37 @@ aiWorker.addEventListener("error", () => {
 function simplifyMovesForUI(moves: Move[]): Move[] {
   const map = new Map<string, Move>();
   for (const move of moves) {
-    const key = `${move.from[0]}-${move.from[1]}-${move.to[0]}-${move.to[1]}`;
+    const key = moveKey(move);
     if (!map.has(key)) {
       map.set(key, { ...move, promotion: undefined });
     }
   }
   return Array.from(map.values());
+}
+
+function getMoveSetsForPiece(board: Board, row: number, col: number): { legal: Move[]; illegal: Move[] } {
+  const piece = board.squares[row][col];
+  if (!piece) return { legal: [], illegal: [] };
+  const pseudoMoves = generatePseudoMovesForPiece(board, row, col, piece);
+  if (pseudoMoves.length === 0) return { legal: [], illegal: [] };
+
+  const legal: Move[] = [];
+  const illegal: Move[] = [];
+  for (const move of pseudoMoves) {
+    if (isMoveLegal(board, move, piece.color)) {
+      legal.push(move);
+    } else {
+      illegal.push(move);
+    }
+  }
+
+  const legalSimplified = simplifyMovesForUI(legal);
+  const illegalSimplified = simplifyMovesForUI(illegal);
+  const legalKeys = new Set(legalSimplified.map(moveKey));
+  return {
+    legal: legalSimplified,
+    illegal: illegalSimplified.filter((move) => !legalKeys.has(moveKey(move))),
+  };
 }
 
 function updateStatus(): void {
@@ -1198,6 +1333,13 @@ function updateDepthControls(): void {
 function resetSelection(): void {
   state.selected = null;
   state.legalMoves = [];
+  state.illegalMoves = [];
+}
+
+function clearHover(): void {
+  state.hovered = null;
+  state.hoverMoves = [];
+  state.hoverIllegalMoves = [];
 }
 
 function resetGame(): void {
@@ -1208,6 +1350,7 @@ function resetGame(): void {
   state.aiAuto = state.mode !== "aivai";
   state.paused = false;
   state.pendingPromotion = null;
+  clearHover();
   resetRepetition(state.board);
   resetHistory(state.board);
   resetSelection();
@@ -1312,6 +1455,7 @@ function handlePromotionChoice(type: PieceType): void {
   recordRepetition(state.board);
   updateGameState(state.board);
   pushHistory(state.board);
+  clearHover();
   resetSelection();
   scheduleNextTurn();
 }
@@ -1333,6 +1477,7 @@ function attemptMove(move: Move): void {
   recordRepetition(state.board);
   updateGameState(state.board);
   pushHistory(state.board);
+  clearHover();
   resetSelection();
   scheduleNextTurn();
 }
@@ -1364,10 +1509,10 @@ function handleBoardClick(event: PointerEvent): void {
 
   if (piece && piece.color === state.board.turn) {
     state.selected = { row, col };
-    const legalMoves = generateAllLegalMoves(state.board, piece.color).filter(
-      (candidate) => candidate.from[0] === row && candidate.from[1] === col,
-    );
-    state.legalMoves = simplifyMovesForUI(legalMoves);
+    const { legal, illegal } = getMoveSetsForPiece(state.board, row, col);
+    state.legalMoves = legal;
+    state.illegalMoves = illegal;
+    clearHover();
   } else {
     resetSelection();
   }
@@ -1376,6 +1521,9 @@ function handleBoardClick(event: PointerEvent): void {
 
 canvas.addEventListener("pointerdown", (event) => {
   if (state.pendingPromotion) return;
+  if (state.hovered) {
+    clearHover();
+  }
   state.dragging = true;
   state.dragMoved = false;
   state.dragStartX = event.clientX;
@@ -1384,12 +1532,38 @@ canvas.addEventListener("pointerdown", (event) => {
 });
 
 canvas.addEventListener("pointermove", (event) => {
-  if (!state.dragging) return;
-  const dx = event.clientX - state.dragStartX;
-  if (Math.abs(dx) > 6) {
-    state.dragMoved = true;
+  if (state.dragging) {
+    const dx = event.clientX - state.dragStartX;
+    if (Math.abs(dx) > 6) {
+      state.dragMoved = true;
+    }
+    state.baseCol = mod(state.dragStartBaseCol - dx / state.squareSize, 8);
+    draw();
+    return;
   }
-  state.baseCol = mod(state.dragStartBaseCol - dx / state.squareSize, 8);
+  if (!state.hoverPreview || state.pendingPromotion || state.selected) return;
+  const coords = getBoardCoords(event);
+  if (!coords) {
+    if (state.hovered) {
+      clearHover();
+      draw();
+    }
+    return;
+  }
+  const { row, col } = coords;
+  const piece = state.board.squares[row][col];
+  if (!piece) {
+    if (state.hovered) {
+      clearHover();
+      draw();
+    }
+    return;
+  }
+  if (state.hovered && state.hovered.row === row && state.hovered.col === col) return;
+  const { legal, illegal } = getMoveSetsForPiece(state.board, row, col);
+  state.hovered = { row, col };
+  state.hoverMoves = legal;
+  state.hoverIllegalMoves = illegal;
   draw();
 });
 
@@ -1408,6 +1582,14 @@ function endDrag(event: PointerEvent): void {
 canvas.addEventListener("pointerup", endDrag);
 canvas.addEventListener("pointerleave", endDrag);
 canvas.addEventListener("pointercancel", endDrag);
+
+canvas.addEventListener("pointerleave", () => {
+  if (state.dragging || !state.hoverPreview) return;
+  if (state.hovered) {
+    clearHover();
+    draw();
+  }
+});
 
 viewLeftBtn.addEventListener("click", () => {
   state.baseCol = mod(state.baseCol - 1, 8);
@@ -1485,6 +1667,7 @@ undoBtn.addEventListener("click", () => {
   }
 
   if (!changed) return;
+  clearHover();
   resetSelection();
   scheduleNextTurn();
 });
@@ -1522,6 +1705,7 @@ loadFenBtn.addEventListener("click", () => {
   state.baseCol = 0;
   state.snapBaseCol = 0;
   state.pendingPromotion = null;
+  clearHover();
   resetRepetition(state.board);
   resetHistory(state.board);
   resetSelection();
@@ -1544,6 +1728,14 @@ aiDepthBlack.addEventListener("input", () => {
   updateDepthLabels();
 });
 
+hoverPreviewToggle.addEventListener("change", () => {
+  state.hoverPreview = hoverPreviewToggle.checked;
+  if (!state.hoverPreview) {
+    clearHover();
+  }
+  draw();
+});
+
 document.querySelectorAll<HTMLInputElement>('input[name="mode"]').forEach((input) => {
   input.addEventListener("change", () => setMode(input.value));
 });
@@ -1564,7 +1756,9 @@ updateStatus();
 aiDelayValue.textContent = `${state.aiDelay} ms`;
 updateDepthLabels();
 updateDepthControls();
+hoverPreviewToggle.checked = state.hoverPreview;
 resetRepetition(state.board);
 resetHistory(state.board);
+updateGameState(state.board);
 resizeCanvas();
 scheduleNextTurn();
