@@ -118,6 +118,7 @@ const pieceIndex: Record<PieceType, number> = {
   q: 4,
   k: 5,
 };
+const DRAG_THRESHOLD_PX = 6;
 
 function mulberry32(seed: number): () => number {
   return () => {
@@ -164,6 +165,7 @@ const state = {
   dragMoved: false,
   dragStartX: 0,
   dragStartBaseCol: 0,
+  dragPointerId: null as number | null,
   selected: null as { row: number; col: number } | null,
   legalMoves: [] as Move[],
   illegalMoves: [] as Move[],
@@ -983,7 +985,7 @@ function resizeCanvas(): void {
   canvas.width = Math.floor(size * dpr);
   canvas.height = Math.floor(size * dpr);
   ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
-  draw();
+  requestDraw();
 }
 
 function drawBoard(): void {
@@ -1182,6 +1184,17 @@ function draw(): void {
   drawPieces();
 }
 
+let drawPending = false;
+
+function requestDraw(): void {
+  if (drawPending) return;
+  drawPending = true;
+  window.requestAnimationFrame(() => {
+    drawPending = false;
+    draw();
+  });
+}
+
 function movesMatch(left: Move, right: Move): boolean {
   const leftPromotion = left.promotion ?? null;
   const rightPromotion = right.promotion ?? null;
@@ -1347,6 +1360,9 @@ function resetGame(): void {
   state.board = initialBoard();
   state.baseCol = 0;
   state.snapBaseCol = 0;
+  state.dragging = false;
+  state.dragMoved = false;
+  state.dragPointerId = null;
   state.aiAuto = state.mode !== "aivai";
   state.paused = false;
   state.pendingPromotion = null;
@@ -1359,7 +1375,7 @@ function resetGame(): void {
   updateButtons();
   updateDepthControls();
   updateDepthLabels();
-  draw();
+  requestDraw();
   scheduleNextTurn();
 }
 
@@ -1391,7 +1407,7 @@ function isHumanTurn(): boolean {
 function scheduleNextTurn(): void {
   updateStatus();
   updateButtons();
-  draw();
+  requestDraw();
   if (state.board.gameOver) return;
   if (state.mode === "aivai" && !state.aiAuto) return;
   if (!isHumanTurn()) {
@@ -1516,11 +1532,13 @@ function handleBoardClick(event: PointerEvent): void {
   } else {
     resetSelection();
   }
-  draw();
+  requestDraw();
 }
 
 canvas.addEventListener("pointerdown", (event) => {
   if (state.pendingPromotion) return;
+  if (event.isPrimary === false || event.button !== 0) return;
+  if (state.dragging) return;
   if (state.hovered) {
     clearHover();
   }
@@ -1528,17 +1546,23 @@ canvas.addEventListener("pointerdown", (event) => {
   state.dragMoved = false;
   state.dragStartX = event.clientX;
   state.dragStartBaseCol = state.baseCol;
+  state.dragPointerId = event.pointerId;
   canvas.setPointerCapture(event.pointerId);
 });
 
 canvas.addEventListener("pointermove", (event) => {
   if (state.dragging) {
-    const dx = event.clientX - state.dragStartX;
-    if (Math.abs(dx) > 6) {
+    if (state.dragPointerId !== event.pointerId) return;
+    let dx = event.clientX - state.dragStartX;
+    if (!state.dragMoved) {
+      if (Math.abs(dx) < DRAG_THRESHOLD_PX) return;
       state.dragMoved = true;
+      state.dragStartX = event.clientX;
+      state.dragStartBaseCol = state.baseCol;
+      dx = 0;
     }
     state.baseCol = mod(state.dragStartBaseCol - dx / state.squareSize, 8);
-    draw();
+    requestDraw();
     return;
   }
   if (!state.hoverPreview || state.pendingPromotion || state.selected) return;
@@ -1546,7 +1570,7 @@ canvas.addEventListener("pointermove", (event) => {
   if (!coords) {
     if (state.hovered) {
       clearHover();
-      draw();
+      requestDraw();
     }
     return;
   }
@@ -1555,7 +1579,7 @@ canvas.addEventListener("pointermove", (event) => {
   if (!piece) {
     if (state.hovered) {
       clearHover();
-      draw();
+      requestDraw();
     }
     return;
   }
@@ -1564,54 +1588,62 @@ canvas.addEventListener("pointermove", (event) => {
   state.hovered = { row, col };
   state.hoverMoves = legal;
   state.hoverIllegalMoves = illegal;
-  draw();
+  requestDraw();
 });
 
-function endDrag(event: PointerEvent): void {
+function endDrag(event: PointerEvent, allowClick: boolean): void {
   if (!state.dragging) return;
+  if (state.dragPointerId !== event.pointerId) return;
   state.dragging = false;
-  canvas.releasePointerCapture(event.pointerId);
-  state.baseCol = mod(Math.round(state.baseCol), 8);
-  state.snapBaseCol = state.baseCol;
-  draw();
-  if (!state.dragMoved) {
+  const wasDrag = state.dragMoved;
+  state.dragMoved = false;
+  state.dragPointerId = null;
+  if (canvas.hasPointerCapture(event.pointerId)) {
+    canvas.releasePointerCapture(event.pointerId);
+  }
+  if (wasDrag) {
+    state.baseCol = mod(Math.round(state.baseCol), 8);
+    state.snapBaseCol = state.baseCol;
+    requestDraw();
+    return;
+  }
+  if (allowClick) {
     handleBoardClick(event);
   }
 }
 
-canvas.addEventListener("pointerup", endDrag);
-canvas.addEventListener("pointerleave", endDrag);
-canvas.addEventListener("pointercancel", endDrag);
+canvas.addEventListener("pointerup", (event) => endDrag(event, true));
+canvas.addEventListener("pointercancel", (event) => endDrag(event, false));
 
 canvas.addEventListener("pointerleave", () => {
   if (state.dragging || !state.hoverPreview) return;
   if (state.hovered) {
     clearHover();
-    draw();
+    requestDraw();
   }
 });
 
 viewLeftBtn.addEventListener("click", () => {
   state.baseCol = mod(state.baseCol - 1, 8);
   state.snapBaseCol = mod(state.snapBaseCol - 1, 8);
-  draw();
+  requestDraw();
 });
 
 viewRightBtn.addEventListener("click", () => {
   state.baseCol = mod(state.baseCol + 1, 8);
   state.snapBaseCol = mod(state.snapBaseCol + 1, 8);
-  draw();
+  requestDraw();
 });
 
 viewCenterBtn.addEventListener("click", () => {
   state.baseCol = 0;
   state.snapBaseCol = 0;
-  draw();
+  requestDraw();
 });
 
 flipBoardBtn.addEventListener("click", () => {
   state.flipBoard = !state.flipBoard;
-  draw();
+  requestDraw();
 });
 
 startBtn.addEventListener("click", () => {
@@ -1733,7 +1765,7 @@ hoverPreviewToggle.addEventListener("change", () => {
   if (!state.hoverPreview) {
     clearHover();
   }
-  draw();
+  requestDraw();
 });
 
 document.querySelectorAll<HTMLInputElement>('input[name="mode"]').forEach((input) => {
