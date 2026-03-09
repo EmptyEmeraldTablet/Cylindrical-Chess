@@ -186,6 +186,7 @@ const state = {
   boardSize: 480,
   squareSize: 60,
   pinnedPieces: new Set<string>(),
+  forceStepRequestId: null as number | null,
 };
 
 const aiWorker = new Worker(new URL("./aiWorker.ts", import.meta.url), { type: "module" });
@@ -1215,31 +1216,75 @@ function cancelAiSearch(): void {
   aiRequestId += 1;
   pendingAiTurn = null;
   state.aiThinking = false;
+  state.forceStepRequestId = null;
 }
 
 aiWorker.addEventListener("message", (event: MessageEvent<WorkerSearchResult>) => {
   const data = event.data;
   if (!data || data.type !== "result") return;
-  if (data.id !== aiRequestId) return;
+
+  const isStep = state.forceStepRequestId === data.id;
+  if (data.id !== aiRequestId) {
+    if (isStep) {
+      state.forceStepRequestId = null;
+    }
+    return;
+  }
   if (pendingAiTurn && data.turn !== pendingAiTurn) {
     state.aiThinking = false;
     pendingAiTurn = null;
+    if (isStep) {
+      state.forceStepRequestId = null;
+    }
     return;
   }
 
   state.aiThinking = false;
   pendingAiTurn = null;
 
-  if (!data.move) return;
-  if (state.board.gameOver || state.pendingPromotion) return;
-  if (state.mode === "aivai" && !state.aiAuto) return;
-  if (state.paused) return;
-  if (state.board.turn !== data.turn) return;
+  if (!data.move) {
+    if (isStep) {
+      state.forceStepRequestId = null;
+    }
+    return;
+  }
+  if (state.board.gameOver || state.pendingPromotion) {
+    if (isStep) {
+      state.forceStepRequestId = null;
+    }
+    return;
+  }
+  if (state.mode === "aivai" && !state.aiAuto && !isStep) {
+    if (isStep) {
+      state.forceStepRequestId = null;
+    }
+    return;
+  }
+  if (state.paused && !isStep) {
+    if (isStep) {
+      state.forceStepRequestId = null;
+    }
+    return;
+  }
+  if (state.board.turn !== data.turn) {
+    if (isStep) {
+      state.forceStepRequestId = null;
+    }
+    return;
+  }
 
   const legalMoves = generateAllLegalMoves(state.board, state.board.turn);
   const matchedMove = legalMoves.find((move) => movesMatch(move, data.move!));
-  if (!matchedMove) return;
+  if (!matchedMove) {
+    if (isStep) {
+      state.forceStepRequestId = null;
+    }
+    return;
+  }
 
+  if (isStep) {
+    state.forceStepRequestId = null;
+  }
   applyMove(state.board, matchedMove);
   recordRepetition(state.board);
   updateGameState(state.board);
@@ -1252,6 +1297,7 @@ aiWorker.addEventListener("message", (event: MessageEvent<WorkerSearchResult>) =
 aiWorker.addEventListener("error", () => {
   state.aiThinking = false;
   pendingAiTurn = null;
+  state.forceStepRequestId = null;
 });
 
 function simplifyMovesForUI(moves: Move[]): Move[] {
@@ -1364,6 +1410,7 @@ function resetGame(): void {
   state.dragging = false;
   state.dragMoved = false;
   state.dragPointerId = null;
+  state.forceStepRequestId = null;
   state.aiAuto = state.mode !== "aivai";
   state.paused = false;
   state.pendingPromotion = null;
@@ -1425,6 +1472,9 @@ function triggerAiMove(force: boolean): void {
 
   const requestId = ++aiRequestId;
   const requestTurn = state.board.turn;
+  if (force) {
+    state.forceStepRequestId = requestId;
+  }
   state.aiThinking = true;
   const delay = force ? 0 : state.aiDelay;
   window.setTimeout(() => {
@@ -1434,7 +1484,7 @@ function triggerAiMove(force: boolean): void {
       pendingAiTurn = null;
       return;
     }
-    if (state.mode === "aivai" && !state.aiAuto) {
+    if (state.mode === "aivai" && !state.aiAuto && !force) {
       state.aiThinking = false;
       pendingAiTurn = null;
       return;
