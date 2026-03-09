@@ -1327,7 +1327,8 @@ function updateButtons(): void {
   startBtn.disabled = !aiVsAi || state.aiAuto || state.board.gameOver;
   pauseBtn.disabled = !aiVsAi || !state.aiAuto || state.board.gameOver;
   pauseBtn.textContent = state.paused ? "继续" : "暂停";
-  stepBtn.disabled = !aiVsAi || !state.aiAuto || !state.paused || state.board.gameOver;
+  const canStep = aiVsAi && !state.board.gameOver && (!state.aiAuto || state.paused);
+  stepBtn.disabled = !canStep;
   undoBtn.disabled = boardHistory.length <= 1;
 }
 
@@ -1663,7 +1664,8 @@ pauseBtn.addEventListener("click", () => {
 });
 
 stepBtn.addEventListener("click", () => {
-  if (state.mode !== "aivai" || !state.aiAuto || !state.paused) return;
+  if (state.mode !== "aivai" || state.board.gameOver) return;
+  if (state.aiAuto && !state.paused) return;
   triggerAiMove(true);
 });
 
