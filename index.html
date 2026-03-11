@@ -1,9 +1,9 @@
 <!DOCTYPE html>
-<html lang="zh-CN">
+<html lang="en">
   <head>
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <title>圆柱面国际象棋</title>
+    <title>Cylindrical Chess</title>
     <link rel="icon" href="data:," />
   </head>
   <body>
@@ -11,16 +11,30 @@
       <header class="hero">
         <div class="hero-top">
           <div class="title-block">
-            <p class="eyebrow">Cylindrical Chess</p>
-            <h1>圆柱面国际象棋</h1>
-            <p class="subtitle">横向循环棋盘 · Canvas 实时渲染 · AI 对弈与视角滚动</p>
+            <p class="eyebrow" data-i18n="eyebrow">Cylindrical Chess</p>
+            <h1 data-i18n="title">Cylindrical Chess</h1>
+            <p class="subtitle" data-i18n="subtitle">Horizontal wrap board · Canvas rendering · AI play and view scroll</p>
             <div class="hero-links">
-              <a href="https://github.com/EmptyEmeraldTablet/Cylindrical-Chess" target="_blank" rel="noreferrer">GitHub 源码</a>
+              <a
+                href="https://github.com/EmptyEmeraldTablet/Cylindrical-Chess"
+                target="_blank"
+                rel="noreferrer"
+                data-i18n="link_github"
+              >GitHub</a>
             </div>
           </div>
-          <div class="status-card">
-            <p class="status-label">对局状态</p>
-            <p class="status-text" id="statusText">载入中...</p>
+          <div class="hero-actions">
+            <div class="language-switch">
+              <label class="language-label" for="languageSelect" data-i18n="label_language">Language</label>
+              <select id="languageSelect" class="language-select">
+                <option value="en" data-i18n="lang_en" selected>English</option>
+                <option value="zh" data-i18n="lang_zh">中文</option>
+              </select>
+            </div>
+            <div class="status-card">
+              <p class="status-label" data-i18n="status_label">Game Status</p>
+              <p class="status-text" id="statusText" data-i18n="status_loading">Loading...</p>
+            </div>
           </div>
         </div>
       </header>
@@ -28,102 +42,108 @@
       <main class="main">
         <section class="board-panel">
           <div class="board-header">
-            <div class="turn-indicator" id="turnLabel">白方回合</div>
+            <div class="turn-indicator" id="turnLabel">White's turn</div>
             <div class="view-controls">
-              <button class="ghost" id="viewLeftBtn">视角左移</button>
-              <button class="ghost" id="viewCenterBtn">回正</button>
-              <button class="ghost" id="viewRightBtn">视角右移</button>
-              <button class="ghost" id="flipBoardBtn">翻转棋盘</button>
+              <button class="ghost" id="viewLeftBtn" data-i18n="view_left">View Left</button>
+              <button class="ghost" id="viewCenterBtn" data-i18n="view_center">Center</button>
+              <button class="ghost" id="viewRightBtn" data-i18n="view_right">View Right</button>
+              <button class="ghost" id="flipBoardBtn" data-i18n="view_flip">Flip Board</button>
             </div>
           </div>
           <div class="canvas-wrap">
-            <canvas id="boardCanvas" aria-label="棋盘"></canvas>
+            <canvas id="boardCanvas" aria-label="Chessboard" data-i18n-aria="board_aria"></canvas>
           </div>
           <div class="board-footer">
-            <p>提示：拖动棋盘可平滑滚动列视角，点击棋子显示落子范围。</p>
+            <p data-i18n="board_tip">Tip: drag to scroll columns, click a piece to see legal moves.</p>
           </div>
         </section>
 
         <section class="control-panel">
           <div class="panel-section">
-            <h2>对弈模式</h2>
-            <div class="option-list" role="radiogroup" aria-label="对弈模式">
+            <h2 data-i18n="section_mode">Game Mode</h2>
+            <div class="option-list" role="radiogroup" aria-label="Game Mode" data-i18n-aria="section_mode">
               <label class="option">
                 <input type="radio" name="mode" value="hvh" checked />
-                <span>人人对弈</span>
+                <span data-i18n="mode_hvh">Human vs Human</span>
               </label>
               <label class="option">
                 <input type="radio" name="mode" value="hvai" />
-                <span>人机对弈（白方人类）</span>
+                <span data-i18n="mode_hvai">Human vs AI (White)</span>
               </label>
               <label class="option">
                 <input type="radio" name="mode" value="aivh" />
-                <span>人机对弈（黑方人类）</span>
+                <span data-i18n="mode_aivh">Human vs AI (Black)</span>
               </label>
               <label class="option">
                 <input type="radio" name="mode" value="aivai" />
-                <span>机器对弈</span>
+                <span data-i18n="mode_aivai">AI vs AI</span>
               </label>
             </div>
           </div>
 
           <div class="panel-section">
-            <h2>AI 控制</h2>
+            <h2 data-i18n="section_ai_control">AI Control</h2>
             <div class="slider-row">
-              <label for="aiDelay">AI 延时</label>
+              <label for="aiDelay" data-i18n="label_ai_delay">AI Delay</label>
               <input id="aiDelay" type="range" min="0" max="2000" step="100" value="500" />
               <span class="slider-value" id="aiDelayValue">500 ms</span>
             </div>
             <div class="button-row">
-              <button id="startBtn">开始</button>
-              <button id="pauseBtn" class="ghost">暂停</button>
-              <button id="stepBtn" class="ghost">单步执行</button>
-              <button id="undoBtn" class="ghost">悔棋</button>
-              <button id="resetBtn" class="ghost">重置棋局</button>
+              <button id="startBtn" data-i18n="btn_start">Start</button>
+              <button id="pauseBtn" class="ghost" data-i18n="btn_pause">Pause</button>
+              <button id="stepBtn" class="ghost" data-i18n="btn_step">Step</button>
+              <button id="undoBtn" class="ghost" data-i18n="btn_undo">Undo</button>
+              <button id="resetBtn" class="ghost" data-i18n="btn_reset">Reset</button>
             </div>
           </div>
 
           <div class="panel-section">
-            <h2>AI 深度</h2>
+            <h2 data-i18n="section_ai_depth">AI Depth</h2>
             <div class="slider-row">
-              <label for="aiDepthWhite">白方深度</label>
+              <label for="aiDepthWhite" data-i18n="label_depth_white">White Depth</label>
               <input id="aiDepthWhite" type="range" min="1" max="5" step="1" value="3" />
-              <span class="slider-value" id="aiDepthWhiteValue">3 层</span>
+              <span class="slider-value" id="aiDepthWhiteValue">3 ply</span>
             </div>
             <div class="slider-row">
-              <label for="aiDepthBlack">黑方深度</label>
+              <label for="aiDepthBlack" data-i18n="label_depth_black">Black Depth</label>
               <input id="aiDepthBlack" type="range" min="1" max="5" step="1" value="3" />
-              <span class="slider-value" id="aiDepthBlackValue">3 层</span>
+              <span class="slider-value" id="aiDepthBlackValue">3 ply</span>
             </div>
-            <p class="helper-text">人机模式仅启用 AI 方；机器对弈可分别设置双方深度。</p>
+            <p class="helper-text" data-i18n="helper_depth">Human vs AI enables only the AI side; AI vs AI supports both depths.</p>
           </div>
 
           <div class="panel-section">
-            <h2>交互显示</h2>
+            <h2 data-i18n="section_interaction">Interaction</h2>
             <label class="option">
               <input id="hoverPreviewToggle" type="checkbox" />
-              <span>悬停预览走法</span>
+              <span data-i18n="label_hover_preview">Hover Move Preview</span>
             </label>
-            <p class="helper-text">开启后，悬停在任意棋子上即可显示可走与吃子提示。</p>
+            <p class="helper-text" data-i18n="helper_hover_preview">When enabled, hover a piece to preview its legal moves.</p>
           </div>
 
           <div class="panel-section">
-            <h2>棋局保存与加载</h2>
-            <textarea id="fenInput" rows="4" spellcheck="false" placeholder="在此粘贴或生成 FEN"></textarea>
+            <h2 data-i18n="section_fen">Save &amp; Load</h2>
+            <textarea
+              id="fenInput"
+              rows="4"
+              spellcheck="false"
+              placeholder="Paste or generate FEN here"
+              data-i18n-placeholder="placeholder_fen"
+            ></textarea>
             <div class="button-row">
-              <button id="saveFenBtn">生成 FEN</button>
-              <button id="exportFenBtn" class="ghost">导出文件</button>
-              <button id="loadFenBtn" class="ghost">加载 FEN</button>
+              <button id="saveFenBtn" data-i18n="btn_save_fen">Generate FEN</button>
+              <button id="exportFenBtn" class="ghost" data-i18n="btn_export_fen">Export File</button>
+              <button id="loadFenBtn" class="ghost" data-i18n="btn_load_fen">Load FEN</button>
             </div>
           </div>
 
           <div class="panel-section">
-            <h2>提示</h2>
+            <h2 data-i18n="section_tips">Tips</h2>
             <ul class="tips">
-              <li>横向相邻列包含循环边界（a 与 h 相邻）。</li>
-              <li>AI 默认深度为 3，适合展示规则效果。</li>
-              <li>支持吃过路兵、易位、升变与将死判断。</li>
-              <li>三次重复或 50 步无兵移动/吃子自动和棋。</li>
+              <li data-i18n="tip_1">Adjacent columns wrap around (a and h are neighbors).</li>
+              <li data-i18n="tip_2">Default AI depth is 3 for demonstration.</li>
+              <li data-i18n="tip_3">Supports en passant, castling, promotion, and checkmate.</li>
+              <li data-i18n="tip_4">Threefold repetition or 50-move rule leads to a draw.</li>
             </ul>
           </div>
         </section>
@@ -132,12 +152,12 @@
 
     <div class="promotion-overlay" id="promotionOverlay" aria-hidden="true">
       <div class="promotion-card">
-        <p class="promotion-title">兵升变</p>
+        <p class="promotion-title" data-i18n="promotion_title">Pawn Promotion</p>
         <div class="promotion-options">
-          <button data-piece="q">后</button>
-          <button data-piece="r">车</button>
-          <button data-piece="b">象</button>
-          <button data-piece="n">马</button>
+          <button data-piece="q" data-i18n="promo_q">Q</button>
+          <button data-piece="r" data-i18n="promo_r">R</button>
+          <button data-piece="b" data-i18n="promo_b">B</button>
+          <button data-piece="n" data-i18n="promo_n">N</button>
         </div>
       </div>
     </div>

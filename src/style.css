@@ -51,6 +51,33 @@ body {
   justify-content: space-between;
 }
 
+.hero-actions {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-end;
+  gap: 12px;
+}
+
+.language-switch {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 10px 16px;
+  border-radius: 999px;
+  background: rgba(208, 107, 46, 0.25);
+  border: 1px solid rgba(255, 211, 160, 0.65);
+  box-shadow: 0 12px 26px rgba(208, 107, 46, 0.35);
+  color: #fff3d7;
+  backdrop-filter: blur(6px);
+}
+
+.language-label {
+  font-size: 0.75rem;
+  letter-spacing: 0.2em;
+  text-transform: uppercase;
+  color: rgba(255, 243, 215, 0.9);
+}
+
 .title-block h1 {
   font-family: "Cinzel", serif;
   font-size: clamp(2rem, 3vw + 1rem, 3.4rem);
@@ -256,6 +283,18 @@ canvas {
   flex-wrap: wrap;
 }
 
+.language-select {
+  min-width: 140px;
+  padding: 8px 14px;
+  border-radius: 999px;
+  border: 1px solid rgba(255, 255, 255, 0.45);
+  background: rgba(16, 45, 47, 0.45);
+  font-family: "Manrope", sans-serif;
+  font-size: 0.9rem;
+  color: #fff7ea;
+  cursor: pointer;
+}
+
 button {
   border: none;
   border-radius: 999px;
@@ -395,6 +434,16 @@ textarea {
   .hero-top {
     flex-direction: column;
     align-items: flex-start;
+  }
+
+  .hero-actions {
+    width: 100%;
+    align-items: flex-start;
+  }
+
+  .language-switch {
+    width: 100%;
+    justify-content: space-between;
   }
 
   .status-card {

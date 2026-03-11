@@ -11,6 +11,7 @@ import type { IconDefinition } from "@fortawesome/free-solid-svg-icons";
 
 type PieceType = "p" | "n" | "b" | "r" | "q" | "k";
 type Color = "w" | "b";
+type Language = "zh" | "en";
 
 interface Piece {
   type: PieceType;
@@ -79,6 +80,7 @@ const aiDepthBlack = document.getElementById("aiDepthBlack") as HTMLInputElement
 const aiDepthBlackValue = document.getElementById("aiDepthBlackValue") as HTMLSpanElement;
 const promotionOverlay = document.getElementById("promotionOverlay") as HTMLDivElement;
 const hoverPreviewToggle = document.getElementById("hoverPreviewToggle") as HTMLInputElement;
+const languageSelect = document.getElementById("languageSelect") as HTMLSelectElement;
 
 const ctx = canvas.getContext("2d");
 if (!ctx) {
@@ -119,6 +121,20 @@ const pieceIndex: Record<PieceType, number> = {
   k: 5,
 };
 const DRAG_THRESHOLD_PX = 6;
+const languageStorageKey = "col-chess-language";
+
+function resolveInitialLanguage(): Language {
+  try {
+    const stored = localStorage.getItem(languageStorageKey);
+    if (stored === "zh" || stored === "en") {
+      return stored;
+    }
+  } catch {
+    // Ignore storage errors and fall back to defaults.
+  }
+
+  return "en";
+}
 
 function mulberry32(seed: number): () => number {
   return () => {
@@ -161,6 +177,7 @@ const state = {
   board: initialBoard(),
   baseCol: 0,
   snapBaseCol: 0,
+  language: resolveInitialLanguage(),
   dragging: false,
   dragMoved: false,
   dragStartX: 0,
@@ -188,6 +205,207 @@ const state = {
   pinnedPieces: new Set<string>(),
   forceStepRequestId: null as number | null,
 };
+
+const translations = {
+  zh: {
+    title: "圆柱面国际象棋",
+    eyebrow: "Cylindrical Chess",
+    subtitle: "横向循环棋盘 · Canvas 实时渲染 · AI 对弈与视角滚动",
+    link_github: "GitHub 源码",
+    status_label: "对局状态",
+    status_loading: "载入中...",
+    view_left: "视角左移",
+    view_center: "回正",
+    view_right: "视角右移",
+    view_flip: "翻转棋盘",
+    board_tip: "提示：拖动棋盘可平滑滚动列视角，点击棋子显示落子范围。",
+    section_mode: "对弈模式",
+    mode_hvh: "人人对弈",
+    mode_hvai: "人机对弈（白方人类）",
+    mode_aivh: "人机对弈（黑方人类）",
+    mode_aivai: "机器对弈",
+    section_ai_control: "AI 控制",
+    label_ai_delay: "AI 延时",
+    delay_value: "{value} ms",
+    btn_start: "开始",
+    btn_pause: "暂停",
+    btn_resume: "继续",
+    btn_step: "单步执行",
+    btn_undo: "悔棋",
+    btn_reset: "重置棋局",
+    section_ai_depth: "AI 深度",
+    label_depth_white: "白方深度",
+    label_depth_black: "黑方深度",
+    depth_value: "{value} 层",
+    helper_depth: "人机模式仅启用 AI 方；机器对弈可分别设置双方深度。",
+    section_interaction: "交互显示",
+    label_hover_preview: "悬停预览走法",
+    helper_hover_preview: "开启后，悬停在任意棋子上即可显示可走与吃子提示。",
+    section_language: "界面语言",
+    label_language: "语言",
+    lang_zh: "中文",
+    lang_en: "English",
+    section_fen: "棋局保存与加载",
+    placeholder_fen: "在此粘贴或生成 FEN",
+    btn_save_fen: "生成 FEN",
+    btn_export_fen: "导出文件",
+    btn_load_fen: "加载 FEN",
+    section_tips: "提示",
+    tip_1: "横向相邻列包含循环边界（a 与 h 相邻）。",
+    tip_2: "AI 默认深度为 3，适合展示规则效果。",
+    tip_3: "支持吃过路兵、易位、升变与将死判断。",
+    tip_4: "三次重复或 50 步无兵移动/吃子自动和棋。",
+    promotion_title: "兵升变",
+    promo_q: "后",
+    promo_r: "车",
+    promo_b: "象",
+    promo_n: "马",
+    board_aria: "棋盘",
+    status_waiting: "等待开始",
+    status_ai_standby: "机器对弈待机",
+    status_draw_repetition: "三次重复和棋",
+    status_draw_50: "50步和棋",
+    status_draw: "和棋",
+    status_game_over: "对局结束",
+    status_white_win: "白方胜",
+    status_white_mate: "白方将死",
+    status_black_win: "黑方胜",
+    status_black_mate: "黑方将死",
+    color_white: "白方",
+    color_black: "黑方",
+    status_check: "{color}被将军",
+    status_move: "{color}走棋",
+    status_turn: "{color}回合",
+    error_fen: "FEN 格式错误",
+  },
+  en: {
+    title: "Cylindrical Chess",
+    eyebrow: "Cylindrical Chess",
+    subtitle: "Horizontal wrap board · Canvas rendering · AI play and view scroll",
+    link_github: "GitHub",
+    status_label: "Game Status",
+    status_loading: "Loading...",
+    view_left: "View Left",
+    view_center: "Center",
+    view_right: "View Right",
+    view_flip: "Flip Board",
+    board_tip: "Tip: drag to scroll columns, click a piece to see legal moves.",
+    section_mode: "Game Mode",
+    mode_hvh: "Human vs Human",
+    mode_hvai: "Human vs AI (White)",
+    mode_aivh: "Human vs AI (Black)",
+    mode_aivai: "AI vs AI",
+    section_ai_control: "AI Control",
+    label_ai_delay: "AI Delay",
+    delay_value: "{value} ms",
+    btn_start: "Start",
+    btn_pause: "Pause",
+    btn_resume: "Resume",
+    btn_step: "Step",
+    btn_undo: "Undo",
+    btn_reset: "Reset",
+    section_ai_depth: "AI Depth",
+    label_depth_white: "White Depth",
+    label_depth_black: "Black Depth",
+    depth_value: "{value} ply",
+    helper_depth: "Human vs AI enables only the AI side; AI vs AI supports both depths.",
+    section_interaction: "Interaction",
+    label_hover_preview: "Hover Move Preview",
+    helper_hover_preview: "When enabled, hover a piece to preview its legal moves.",
+    section_language: "Language",
+    label_language: "Language",
+    lang_zh: "中文",
+    lang_en: "English",
+    section_fen: "Save & Load",
+    placeholder_fen: "Paste or generate FEN here",
+    btn_save_fen: "Generate FEN",
+    btn_export_fen: "Export File",
+    btn_load_fen: "Load FEN",
+    section_tips: "Tips",
+    tip_1: "Adjacent columns wrap around (a and h are neighbors).",
+    tip_2: "Default AI depth is 3 for demonstration.",
+    tip_3: "Supports en passant, castling, promotion, and checkmate.",
+    tip_4: "Threefold repetition or 50-move rule leads to a draw.",
+    promotion_title: "Pawn Promotion",
+    promo_q: "Q",
+    promo_r: "R",
+    promo_b: "B",
+    promo_n: "N",
+    board_aria: "Chessboard",
+    status_waiting: "Waiting to start",
+    status_ai_standby: "AI vs AI standby",
+    status_draw_repetition: "Draw by repetition",
+    status_draw_50: "Draw by 50-move rule",
+    status_draw: "Draw",
+    status_game_over: "Game Over",
+    status_white_win: "White wins",
+    status_white_mate: "White checkmates",
+    status_black_win: "Black wins",
+    status_black_mate: "Black checkmates",
+    color_white: "White",
+    color_black: "Black",
+    status_check: "{color} in check",
+    status_move: "{color} to move",
+    status_turn: "{color}'s turn",
+    error_fen: "Invalid FEN",
+  },
+} as const;
+
+type TranslationKey = keyof typeof translations.zh;
+
+function formatTemplate(template: string, params: Record<string, string>): string {
+  return template.replace(/\{(\w+)\}/g, (_, key) => params[key] ?? "");
+}
+
+function t(key: TranslationKey): string {
+  const table = translations[state.language] ?? translations.zh;
+  return table[key] ?? translations.zh[key] ?? key;
+}
+
+function applyTranslations(): void {
+  document.documentElement.lang = state.language === "zh" ? "zh-CN" : "en";
+  document.title = t("title");
+
+  document.querySelectorAll<HTMLElement>("[data-i18n]").forEach((element) => {
+    const key = element.dataset.i18n as TranslationKey | undefined;
+    if (!key) return;
+    element.textContent = t(key);
+  });
+
+  document.querySelectorAll<HTMLElement>("[data-i18n-placeholder]").forEach((element) => {
+    const key = element.dataset.i18nPlaceholder as TranslationKey | undefined;
+    if (!key) return;
+    if (element instanceof HTMLInputElement || element instanceof HTMLTextAreaElement) {
+      element.placeholder = t(key);
+    }
+  });
+
+  document.querySelectorAll<HTMLElement>("[data-i18n-aria]").forEach((element) => {
+    const key = element.dataset.i18nAria as TranslationKey | undefined;
+    if (!key) return;
+    element.setAttribute("aria-label", t(key));
+  });
+
+  if (languageSelect) {
+    languageSelect.value = state.language;
+  }
+}
+
+function setLanguage(lang: Language, persist = true): void {
+  state.language = lang;
+  if (persist) {
+    try {
+      localStorage.setItem(languageStorageKey, lang);
+    } catch {
+      // Ignore storage errors.
+    }
+  }
+  applyTranslations();
+  updateStatus();
+  updateButtons();
+  updateDepthLabels();
+  updateDelayLabel();
+}
 
 const aiWorker = new Worker(new URL("./aiWorker.ts", import.meta.url), { type: "module" });
 let aiRequestId = 0;
@@ -1338,49 +1556,63 @@ function getMoveSetsForPiece(board: Board, row: number, col: number): { legal: M
 
 function updateStatus(): void {
   if (!state.board.gameOver && state.mode === "aivai" && !state.aiAuto) {
-    statusText.textContent = "等待开始";
-    turnLabel.textContent = "机器对弈待机";
+    statusText.textContent = t("status_waiting");
+    turnLabel.textContent = t("status_ai_standby");
     return;
   }
   if (state.board.gameOver) {
     if (state.board.winner === "draw") {
       if (getRepetitionCount(state.board) >= 3) {
-        statusText.textContent = "三次重复和棋";
+        statusText.textContent = t("status_draw_repetition");
       } else if (state.board.halfMove >= 100) {
-        statusText.textContent = "50步和棋";
+        statusText.textContent = t("status_draw_50");
       } else {
-        statusText.textContent = "和棋";
+        statusText.textContent = t("status_draw");
       }
-      turnLabel.textContent = "对局结束";
+      turnLabel.textContent = t("status_game_over");
     } else if (state.board.winner === "w") {
-      statusText.textContent = "白方胜";
-      turnLabel.textContent = "白方将死";
+      statusText.textContent = t("status_white_win");
+      turnLabel.textContent = t("status_white_mate");
     } else {
-      statusText.textContent = "黑方胜";
-      turnLabel.textContent = "黑方将死";
+      statusText.textContent = t("status_black_win");
+      turnLabel.textContent = t("status_black_mate");
     }
     return;
   }
 
-  const turnName = state.board.turn === "w" ? "白方" : "黑方";
+  const turnName = state.board.turn === "w" ? t("color_white") : t("color_black");
   const inCheck = isInCheck(state.board, state.board.turn);
-  statusText.textContent = inCheck ? `${turnName}被将军` : `${turnName}走棋`;
-  turnLabel.textContent = inCheck ? `${turnName}被将军` : `${turnName}回合`;
+  statusText.textContent = inCheck
+    ? formatTemplate(t("status_check"), { color: turnName })
+    : formatTemplate(t("status_move"), { color: turnName });
+  turnLabel.textContent = inCheck
+    ? formatTemplate(t("status_check"), { color: turnName })
+    : formatTemplate(t("status_turn"), { color: turnName });
 }
 
 function updateButtons(): void {
   const aiVsAi = state.mode === "aivai";
   startBtn.disabled = !aiVsAi || state.aiAuto || state.board.gameOver;
   pauseBtn.disabled = !aiVsAi || !state.aiAuto || state.board.gameOver;
-  pauseBtn.textContent = state.paused ? "继续" : "暂停";
+  pauseBtn.textContent = state.paused ? t("btn_resume") : t("btn_pause");
   const canStep = aiVsAi && !state.board.gameOver && (!state.aiAuto || state.paused);
   stepBtn.disabled = !canStep;
   undoBtn.disabled = boardHistory.length <= 1;
 }
 
 function updateDepthLabels(): void {
-  aiDepthWhiteValue.textContent = `${state.aiDepthWhite} 层`;
-  aiDepthBlackValue.textContent = `${state.aiDepthBlack} 层`;
+  aiDepthWhiteValue.textContent = formatTemplate(t("depth_value"), {
+    value: state.aiDepthWhite.toString(),
+  });
+  aiDepthBlackValue.textContent = formatTemplate(t("depth_value"), {
+    value: state.aiDepthBlack.toString(),
+  });
+}
+
+function updateDelayLabel(): void {
+  aiDelayValue.textContent = formatTemplate(t("delay_value"), {
+    value: state.aiDelay.toString(),
+  });
 }
 
 function updateDepthControls(): void {
@@ -1781,7 +2013,7 @@ exportFenBtn.addEventListener("click", () => {
 loadFenBtn.addEventListener("click", () => {
   const loaded = loadFEN(fenInput.value);
   if (!loaded) {
-    statusText.textContent = "FEN 格式错误";
+    statusText.textContent = t("error_fen");
     return;
   }
   cancelAiSearch();
@@ -1799,7 +2031,7 @@ loadFenBtn.addEventListener("click", () => {
 
 aiDelaySlider.addEventListener("input", () => {
   state.aiDelay = Number(aiDelaySlider.value);
-  aiDelayValue.textContent = `${state.aiDelay} ms`;
+  updateDelayLabel();
 });
 
 aiDepthWhite.addEventListener("input", () => {
@@ -1820,6 +2052,13 @@ hoverPreviewToggle.addEventListener("change", () => {
   requestDraw();
 });
 
+languageSelect.addEventListener("change", () => {
+  const value = languageSelect.value as Language;
+  if (value === "zh" || value === "en") {
+    setLanguage(value);
+  }
+});
+
 document.querySelectorAll<HTMLInputElement>('input[name="mode"]').forEach((input) => {
   input.addEventListener("change", () => setMode(input.value));
 });
@@ -1835,10 +2074,7 @@ window.addEventListener("resize", () => {
   resizeCanvas();
 });
 
-updateButtons();
-updateStatus();
-aiDelayValue.textContent = `${state.aiDelay} ms`;
-updateDepthLabels();
+setLanguage(state.language, false);
 updateDepthControls();
 hoverPreviewToggle.checked = state.hoverPreview;
 resetRepetition(state.board);
