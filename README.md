@@ -1,5 +1,7 @@
 # Cylindrical Chess | 圆柱面国际象棋
 
+> 🌐 [English README](./README.en.md)
+
 横向循环棋盘的国际象棋变体演示，使用 Canvas 实时渲染与 Web Worker AI 搜索。支持人机对弈、机器对弈、棋盘视角滚动与翻转、FEN 导入导出。
 
 ## 在线示例
